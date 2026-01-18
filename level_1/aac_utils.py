@@ -55,6 +55,7 @@ def mdct(x, N):
     # Retrieve cached matrix
     cos_matrix = _mdct_cache[N]
     
+    # Compute MDCT
     X = 2 * np.dot(cos_matrix, x)
     
     return X
@@ -81,6 +82,7 @@ def i_mdct(X, N):
     # Retrieve cached matrix
     cos_matrix = _i_mdct_cache[N]
     
+    # Compute IMDCT
     x = (2 / N) * np.dot(cos_matrix, X)
     
     return x
