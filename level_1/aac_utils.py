@@ -1,14 +1,30 @@
 import numpy as np
 from scipy.signal.windows import kaiser
 
+
 # Global caches
 _mdct_cache = {}
 _i_mdct_cache = {}
 
 
 # Create Kaiser-Bessel-Derived (KBD) window
-def kbd_window(N, alpha):
+def kbd_window(N, alpha=None):
+    """
+    Kaiser-Bessel-Derived (KBD) window for MDCT.
     
+    Args:
+        N: Window length in samples (2048 for long frames, 256 for short frames)
+        alpha: Shape parameter (optional)
+               - If None, uses AAC standard: 6 for N=2048, 4 for N=256
+               - Larger alpha = sharper frequency selectivity
+    
+    Returns:
+        window: NumPy array of shape (N,) containing KBD window values
+    """
+    
+    if alpha is None:
+        alpha = 6 if N == 2048 else 4  # AAC standard values
+
     # Generate Kaiser window
     w = kaiser(N // 2 + 1, np.pi * alpha)
     
@@ -27,6 +43,15 @@ def kbd_window(N, alpha):
 
 # Create sinusoid window
 def sin_window(N):
+    """
+    Sinusoid window for MDCT.
+    
+    Args:
+        N: Window length in samples (2048 for long frames, 256 for short frames)
+    
+    Returns:
+        window: NumPy array of shape (N,) containing sine window values
+    """
     
     n = np.arange(N)
     sin = np.sin((np.pi / N) * (n + 0.5))
@@ -36,6 +61,20 @@ def sin_window(N):
 
 # Modified Discrete Cosine Transform (MDCT)
 def mdct(x, N):
+    """
+    Modified Discrete Cosine Transform (MDCT).
+    Transforms time-domain signal to frequency-domain coefficients.
+    Uses matrix caching for computational efficiency.
+    
+    Args:
+        x: Windowed time-domain signal, NumPy array of shape (N,)
+        N: Transform size (2048 for long frames, 256 for short frames)
+    
+    Returns:
+        X: MDCT coefficients, NumPy array of shape (N/2,)
+           - 1024 coefficients for N=2048
+           - 128 coefficients for N=256
+    """
     
     global _mdct_cache
     
@@ -63,6 +102,19 @@ def mdct(x, N):
 
 # Inverse Modified Discrete Cosine Transform (IMDCT)
 def i_mdct(X, N):
+    """
+    Inverse Modified Discrete Cosine Transform (IMDCT).
+    Transforms frequency-domain coefficients back to time-domain signal.
+    Uses matrix caching for computational efficiency.
+    
+    Args:
+        X: MDCT coefficients, NumPy array of shape (N/2,)
+        N: Transform size (2048 for long frames, 256 for short frames)
+    
+    Returns:
+        x: Reconstructed time-domain signal, NumPy array of shape (N,)
+           Still requires windowing and overlap-add for final reconstruction
+    """
     
     global _i_mdct_cache
     

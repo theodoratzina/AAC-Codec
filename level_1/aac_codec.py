@@ -1,256 +1,211 @@
-# """
-# AAC Codec - Level 1
-# Includes: Encoder, Decoder, Demo
-# """
-
-# import numpy as np
-# import soundfile as sf
-# from aac_ssc_filterbank import SSC, filter_bank, i_filter_bank
+import numpy as np
+import soundfile as sf
+from aac_ssc_filterbank import SSC, filter_bank, i_filter_bank
 
 
-# def aac_coder_1(filename_in):
-#     """
-#     AAC Encoder Level 1
+def aac_coder_1(filename_in):
+    """
+    Level 1 AAC encoder.
+    
+    Args:
+        filename_in: Path to input WAV file (48 kHz stereo)
+    
+    Returns:
+        aac_seq_1: List of K dictionaries, one per frame, containing:
+                   - 'frame_type': 'OLS', 'LSS', 'ESH', or 'LPS'
+                   - 'win_type': 'KBD' or 'SIN'
+                   - 'chl': dict with 'frame_F' (MDCT for left channel)
+                   - 'chr': dict with 'frame_F' (MDCT for right channel)
+    """
 
-#     Encodes a WAV file using:
-#     - Sequence Segmentation Control (SSC)
-#     - Filter Bank (MDCT)
+    # Read audio file
+    audio, fs = sf.read(filename_in)
 
-#     Parameters:
-#     -----------
-#     filename_in : str
-#         Input WAV filename (stereo, 48kHz)
+    # Convert mono to stereo if needed
+    if audio.ndim == 1:
+        audio = np.column_stack([audio, audio])
+    
+    # Verify sampling rate and channels
+    assert fs == 48000, f"Sample rate must be 48kHz, got {fs}Hz"
+    assert audio.shape[1] == 2, f"Audio must be stereo, got {audio.shape[1]} channels"
 
-#     Returns:
-#     --------
-#     aac_seq_1 : list
-#         List of encoded frames. Each element contains:
-#         - frame_type: "OLS", "LSS", "ESH", or "LPS"
-#         - win_type: "KBD" or "SIN"
-#         - chl["frame_F"]: MDCT coefficients for left channel
-#         - chr["frame_F"]: MDCT coefficients for right channel
-#     """
+    # AAC parameters
+    win_type = "KBD"
+    frame_size = 2048
+    hop_size = 1024  # 50% overlap
 
-#     # Read audio file
-#     audio, fs = sf.read(filename_in)
+    # Pad with 1024 zeros at beginning and end for proper MDCT overlap
+    audio = np.pad(audio, ((hop_size, hop_size), (0, 0)), mode='constant')
+    
+    # Calculate number of frames (K)
+    num_samples = len(audio)
+    K = (num_samples - frame_size) // hop_size + 1
+    
+    # Pad if needed for last frame
+    min_length = (K - 1) * hop_size + frame_size
+    if num_samples < min_length:
+        audio = np.pad(audio, ((0, min_length - num_samples), (0, 0)), mode='constant')
+    
+    # Add one extra frame for SSC lookahead
+    audio = np.pad(audio, ((0, frame_size), (0, 0)), mode='constant')
+    
+    # Encoded sequence list
+    aac_seq_1 = []
+    prev_frame_type = "OLS"
+    
+    # Encode each frame
+    for i in range(K):
+        # Extract current frame (with 50% overlap)
+        start = i * hop_size
+        frame_T = audio[start:start + frame_size, :]
+        
+        # Extract next frame for SSC
+        next_start = (i + 1) * hop_size
+        next_frame_T = audio[next_start:next_start + frame_size, :]
+        
+        # Sequence Segmentation Control
+        frame_type = SSC(frame_T, next_frame_T, prev_frame_type)
+        
+        # Filter Bank (MDCT)
+        frame_F = filter_bank(frame_T, frame_type, win_type)
+        
+        # Store encoded frame
+        if frame_type == "ESH":
+            # ESH: frame_F has shape (128, 8, 2)
+            aac_seq_1.append({
+                'frame_type': frame_type,
+                'win_type': win_type,
+                'chl': {'frame_F': frame_F[:, :, 0]},
+                'chr': {'frame_F': frame_F[:, :, 1]}
+            })
 
-#     # Convert to stereo if mono
-#     if len(audio.shape) == 1:
-#         audio = np.column_stack([audio, audio])
-
-#     # Checks
-#     assert audio.shape[1] == 2, "Audio must be stereo (2 channels)"
-#     assert fs == 48000, f"Sample rate must be 48kHz, got {fs}Hz"
-
-#     # Frame parameters
-#     frame_size = 2048
-#     hop_size = 1024  # 50% overlap
-
-#     num_samples = len(audio)
-#     num_frames = (num_samples - frame_size) // hop_size + 1
-
-#     # Padding if file is too short
-#     if num_samples < frame_size:
-#         audio = np.pad(audio, ((0, frame_size - num_samples), (0, 0)), mode='constant')
-#         num_frames = 1
-
-#     aac_seq_1 = []
-#     win_type = "KBD"  # Use KBD windows
-#     prev_frame_type = "OLS"  # Initialization
-
-#     for i in range(num_frames):
-#         # Extract current frame
-#         start = i * hop_size
-#         end = start + frame_size
-
-#         if end > len(audio):
-#             # Padding for last frame
-#             frame_T = np.pad(audio[start:], ((0, end - len(audio)), (0, 0)), mode='constant')
-#         else:
-#             frame_T = audio[start:end]
-
-#         # Extract next frame for SSC
-#         next_start = (i + 1) * hop_size
-#         next_end = next_start + frame_size
-
-#         if next_end > len(audio):
-#             # Padding or use current if no next frame exists
-#             if next_start < len(audio):
-#                 next_frame_T = np.pad(audio[next_start:], 
-#                                       ((0, max(0, next_end - len(audio))), (0, 0)), 
-#                                       mode='constant')
-#             else:
-#                 next_frame_T = frame_T  # Use current at the end
-#         else:
-#             next_frame_T = audio[next_start:next_end]
-
-#         # Sequence Segmentation Control
-#         frame_type = SSC(frame_T, next_frame_T, prev_frame_type)
-
-#         # Filter Bank (MDCT)
-#         frame_F = filter_bank(frame_T, frame_type, win_type)
-
-#         # Store frame
-#         # Reshape for consistency: (128, 8) for ESH, (1024, 1) for others
-#         frame_data = {
-#             "frame_type": frame_type,
-#             "win_type": win_type,
-#             "chl": {
-#                 "frame_F": frame_F[:, 0].reshape(-1, 8 if frame_type == "ESH" else 1)
-#             },
-#             "chr": {
-#                 "frame_F": frame_F[:, 1].reshape(-1, 8 if frame_type == "ESH" else 1)
-#             }
-#         }
-
-#         aac_seq_1.append(frame_data)
-#         prev_frame_type = frame_type
-
-#     return aac_seq_1
+        else:
+            # OLS/LSS/LPS: frame_F has shape (1024, 2)
+            aac_seq_1.append({
+                'frame_type': frame_type,
+                'win_type': win_type,
+                'chl': {'frame_F': frame_F[:, 0]},
+                'chr': {'frame_F': frame_F[:, 1]}
+            })
+        
+        # Update previous frame type
+        prev_frame_type = frame_type
+    
+    return aac_seq_1
 
 
-# def i_aac_coder_1(aac_seq_1, filename_out):
-#     """
-#     AAC Decoder Level 1
+def i_aac_coder_1(aac_seq_1, filename_out):
+    """
+    Level 1 AAC decoder.
+    
+    Args:
+        aac_seq_1: Encoded sequence from aac_coder_1
+        filename_out: Output WAV file path
+    
+    Returns:
+        x: Decoded audio signal (numpy array, shape: (num_samples, 2))
+    """
 
-#     Decodes a sequence of frames and saves to WAV.
+    # Get number of frames
+    K = len(aac_seq_1)
+    
+    # AAC parameters
+    frame_size = 2048
+    hop_size = 1024  # 50% overlap
+    
+    # Calculate output length 
+    output_length = (K - 1) * hop_size + frame_size
+    
+    # Initialize output buffer
+    x = np.zeros((output_length, 2))
+    
+    # Decode each frame
+    for i in range(K):
+        # Extract frame info
+        frame_type = aac_seq_1[i]['frame_type']
+        win_type = aac_seq_1[i]['win_type']
+        
+        # Reconstruct frame_F by combining left and right channels
+        if frame_type == "ESH":
+            # ESH: Reconstruct (128, 8, 2)
+            frame_F_left = aac_seq_1[i]['chl']['frame_F']   # (128, 8)
+            frame_F_right = aac_seq_1[i]['chr']['frame_F']  # (128, 8)
+            
+            # Stack to create (128, 8, 2)
+            frame_F = np.stack([frame_F_left, frame_F_right], axis=2)
+        else:
+            # OLS/LSS/LPS: Reconstruct (1024, 2)
+            frame_F_left = aac_seq_1[i]['chl']['frame_F']   # (1024,)
+            frame_F_right = aac_seq_1[i]['chr']['frame_F']  # (1024,)
+            
+            # Stack to create (1024, 2)
+            frame_F = np.column_stack([frame_F_left, frame_F_right])
+        
+        # Apply inverse filterbank (IMDCT)
+        frame_T = i_filter_bank(frame_F, frame_type, win_type)
+        
+        # Overlap-add into output buffer
+        start = i * hop_size
+        end = start + frame_size
+        x[start:end, :] += frame_T
 
-#     Parameters:
-#     -----------
-#     aac_seq_1 : list
-#         Encoded sequence from aac_coder_1
-#     filename_out : str
-#         Output WAV filename
-
-#     Returns:
-#     --------
-#     x : ndarray
-#         Decoded signal (stereo)
-#     """
-
-#     num_frames = len(aac_seq_1)
-#     hop_size = 1024
-
-#     # Compute output size
-#     # Each frame contributes hop_size samples + last frame
-#     output_length = hop_size * num_frames + hop_size
-#     reconstructed = np.zeros((output_length, 2))
-
-#     for i, frame_data in enumerate(aac_seq_1):
-#         frame_type = frame_data["frame_type"]
-#         win_type = frame_data["win_type"]
-
-#         # Reconstruct frame_F from both channels
-#         frame_F_left = frame_data["chl"]["frame_F"].flatten()
-#         frame_F_right = frame_data["chr"]["frame_F"].flatten()
-#         frame_F = np.column_stack([frame_F_left, frame_F_right])
-
-#         # Inverse Filter Bank (IMDCT)
-#         frame_T = i_filter_bank(frame_F, frame_type, win_type)
-
-#         # Overlap-add
-#         start = i * hop_size
-#         end = start + 2048
-
-#         if end > len(reconstructed):
-#             # Extend buffer if needed
-#             reconstructed = np.pad(reconstructed, 
-#                                   ((0, end - len(reconstructed)), (0, 0)), 
-#                                   mode='constant')
-
-#         reconstructed[start:end] += frame_T
-
-#     # Save to WAV file
-#     sf.write(filename_out, reconstructed, 48000)
-
-#     return reconstructed
-
-
-# def demo_aac_1(filename_in, filename_out):
-#     """
-#     Demo function for Level 1
-
-#     Encodes and decodes a WAV file,
-#     computes SNR and displays statistics.
-
-#     Parameters:
-#     -----------
-#     filename_in : str
-#         Input WAV file
-#     filename_out : str
-#         Output WAV file
-
-#     Returns:
-#     --------
-#     SNR : float
-#         Signal-to-Noise Ratio in dB
-#     """
-
-#     print("=" * 60)
-#     print("AAC LEVEL 1 - DEMO")
-#     print("=" * 60)
-
-#     # Encoding
-#     print(f"\n[1/3] Encoding: {filename_in}")
-#     aac_seq_1 = aac_coder_1(filename_in)
-#     print(f"      ✓ Encoded {len(aac_seq_1)} frames")
-
-#     # Frame type statistics
-#     frame_types = [frame["frame_type"] for frame in aac_seq_1]
-#     type_counts = {
-#         "OLS": frame_types.count("OLS"),
-#         "LSS": frame_types.count("LSS"),
-#         "ESH": frame_types.count("ESH"),
-#         "LPS": frame_types.count("LPS")
-#     }
-#     print(f"      Frame types: OLS={type_counts['OLS']}, LSS={type_counts['LSS']}, "
-#           f"ESH={type_counts['ESH']}, LPS={type_counts['LPS']}")
-
-#     # Decoding
-#     print(f"\n[2/3] Decoding: {filename_out}")
-#     reconstructed = i_aac_coder_1(aac_seq_1, filename_out)
-#     print(f"      ✓ Decoded {len(reconstructed)} samples")
-
-#     # SNR Calculation
-#     print(f"\n[3/3] Computing SNR...")
-#     original, fs = sf.read(filename_in)
-
-#     # Convert to stereo if mono
-#     if len(original.shape) == 1:
-#         original = np.column_stack([original, original])
-
-#     # Same length for comparison
-#     min_len = min(len(original), len(reconstructed))
-#     original = original[:min_len]
-#     reconstructed = reconstructed[:min_len]
-
-#     # SNR computation
-#     signal_power = np.mean(original ** 2)
-#     noise_power = np.mean((original - reconstructed) ** 2)
-
-#     if noise_power > 0:
-#         SNR = 10 * np.log10(signal_power / noise_power)
-#     else:
-#         SNR = np.inf
-
-#     print(f"      ✓ SNR: {SNR:.2f} dB")
-
-#     print("\n" + "=" * 60)
-#     print("COMPLETED!")
-#     print("=" * 60)
-
-#     return SNR
+    # Remove the 1024 samples of padding from start and end
+    x = x[hop_size:-hop_size, :]
+    
+    # Write to WAV file (48 kHz stereo)
+    sf.write(filename_out, x, 48000)
+    
+    return x
 
 
-# if __name__ == "__main__":
-#     # Usage example
-#     import sys
+def demo_aac_1(filename_in, filename_out):
+    """
+    Demonstrates Level 1 AAC encoder/decoder and computes SNR.
+    
+    Args:
+        filename_in: Input WAV file (48 kHz stereo)
+        filename_out: Output WAV file (48 kHz stereo)
+    
+    Returns:
+        SNR: Signal-to-Noise Ratio in dB
+    """
 
-#     if len(sys.argv) == 3:
-#         input_file = sys.argv[1]
-#         output_file = sys.argv[2]
-#         demo_aac_1(input_file, output_file)
-#     else:
-#         print("Usage: python aac_codec.py <input.wav> <output.wav>")
-#         print("\nExample:")
-#         print("  python aac_codec.py input.wav output.wav")
+    # Load original audio
+    original, fs = sf.read(filename_in)
+    
+    # Ensure 2D shape for comparison (mono or stereo)
+    if original.ndim == 1:
+        original = original.reshape(-1, 1)
+    
+    # Encode
+    print("Encoding...")
+    aac_seq_1 = aac_coder_1(filename_in)
+    print(f"Encoded {len(aac_seq_1)} frames")
+    
+    # Decode
+    print("Decoding...")
+    decoded = i_aac_coder_1(aac_seq_1, filename_out)
+    print(f"Decoded audio shape: {decoded.shape}")
+    
+    # If original was mono, compare only first channel
+    if original.shape[1] == 1 and decoded.shape[1] == 2:
+        # Original was mono, decoder made stereo (both channels identical)
+        decoded = decoded[:, :1]  # Use only left channel for fair comparison
+    
+    # Match lengths
+    min_length = min(len(original), len(decoded))
+    original = original[:min_length, :]
+    decoded = decoded[:min_length, :]
+    
+    # Calculate SNR
+    signal_power = np.sum(original ** 2)
+    noise_power = np.sum((original - decoded) ** 2)
+    
+    if noise_power == 0:
+        SNR = float('inf')
+    else:
+        SNR = 10 * np.log10(signal_power / noise_power)
+    
+    print(f"SNR: {SNR:.2f} dB")
+    
+    return SNR
