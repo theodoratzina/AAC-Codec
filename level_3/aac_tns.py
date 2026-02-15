@@ -51,9 +51,7 @@ def tns(frame_F_in, frame_type):
         for i in range(8):
             X = frame_F_in[:, i]
             frame_F_out[:, i], tns_coeffs[:, i] = _process_tns(X, bands)
-
-    else:  # OLS/LSS/LPS
-        # Long frames: use Table B.2.1.9.a
+    else:
         bands = tables['B219a']
         X = frame_F_in
         frame_F_out, tns_coeffs = _process_tns(X, bands)
@@ -161,16 +159,16 @@ def i_tns(frame_F_in, frame_type, tns_coeffs):
 
         # Process each subframe independently
         for i in range(8):
-            frame_F_out[:, i] = _inverse_tns(frame_F_in[:, i], tns_coeffs[:, i])
+            frame_F_out[:, i] = _apply_inverse_tns(frame_F_in[:, i], tns_coeffs[:, i])
 
     else:  # OLS/LSS/LPS
         # Long frames: use Table B.2.1.9.a
-        frame_F_out = _inverse_tns(frame_F_in, tns_coeffs)
+        frame_F_out = _apply_inverse_tns(frame_F_in, tns_coeffs)
     
     return frame_F_out
 
 
-def _inverse_tns(X, a):
+def _apply_inverse_tns(X, a):
     """
     Apply inverse TNS filter (IIR).
     
