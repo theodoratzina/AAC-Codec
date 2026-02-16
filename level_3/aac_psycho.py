@@ -5,17 +5,18 @@ from aac_tns import _load_band_tables
 
 def psycho(frame_T, frame_type, frame_T_prev_1, frame_T_prev_2):
     """
-    Main psychoacoustic model function.
+    Main psychoacoustic model function for one channel. 
+    Computes the Signal-to-Mask Ratio (SMR) for the current frame.
     
     Args:
-        frame_T: Current frame (2048, 2)
+        frame_T: Current frame (2048,)
         frame_type: 'OLS', 'LSS', 'ESH', or 'LPS'
-        frame_T_prev_1: Previous frame (2048, 2)
-        frame_T_prev_2: 2 frames back (2048, 2)
+        frame_T_prev_1: Previous frame (2048,)
+        frame_T_prev_2: 2 frames back (2048,)
     
     Returns:
         SMR: Signal-to-Mask Ratio
-            - (69, 1) for long frames (OLS/LSS/LPS)
+            - (69,) for long frames (OLS/LSS/LPS)
             - (42, 8) for ESH frames
     """
     tables = _load_band_tables()
@@ -35,9 +36,9 @@ def psycho(frame_T, frame_type, frame_T_prev_1, frame_T_prev_2):
         for i in range(8):
             # Extract 256-sample subframe from center region
             start = 448 + i * 128
-            subframe = frame_T[start:start+256, :]
-            subframe_prev_1 = frame_T_prev_1[start:start+256, :]
-            subframe_prev_2 = frame_T_prev_2[start:start+256, :]
+            subframe = frame_T[start:start+256]
+            subframe_prev_1 = frame_T_prev_1[start:start+256]
+            subframe_prev_2 = frame_T_prev_2[start:start+256]
 
             # Compute SMR for this subframe
             SMR[:, i] = _process_frame(subframe, subframe_prev_1, subframe_prev_2, bands)
@@ -46,7 +47,6 @@ def psycho(frame_T, frame_type, frame_T_prev_1, frame_T_prev_2):
         # Long frames: use Table B.2.1.9.a
         bands = tables['B219a']
         SMR = _process_frame(frame_T, frame_T_prev_1, frame_T_prev_2, bands)
-        SMR = SMR.reshape(-1, 1)
     
     return SMR
 
@@ -54,10 +54,9 @@ def psycho(frame_T, frame_type, frame_T_prev_1, frame_T_prev_2):
 def _process_frame(frame, frame_prev_1, frame_prev_2, bands):
     """
     Process one frame (or subframe) through psychoacoustic model.
-    Implements all 12 steps from the PDF.
     
     Args:
-        frame: Current frame samples (2048, 2) or (256, 2)
+        frame: Current frame samples (2048,) or (256,)
         frame_prev1, frame_prev2: Previous frames (same shape)
         bands: Critical band table (B219a or B219b) - 13 bands
     
@@ -66,12 +65,7 @@ def _process_frame(frame, frame_prev_1, frame_prev_2, bands):
             - Length 69 for long frames (N=2048)
             - Length 42 for short frames (N=256)
     """
-    # Average left and right channels (mono processing)
-    signal = np.mean(frame, axis=1)
-    signal_prev_1 = np.mean(frame_prev_1, axis=1)
-    signal_prev_2 = np.mean(frame_prev_2, axis=1)
-    
-    N = len(signal)
+    N = len(frame)
     num_bands = len(bands)  # 13 critical bands
     
     # Determine number of scalefactor bands
@@ -87,19 +81,19 @@ def _process_frame(frame, frame_prev_1, frame_prev_2, bands):
     hann = 0.5 - 0.5 * np.cos(np.pi * (n + 0.5) / N)
     
     # Current frame
-    windowed = signal * hann
+    windowed = frame * hann
     spectrum = fft(windowed)
     r = np.abs(spectrum[:N//2])      # Magnitude (1024 or 128 bins)
     f = np.angle(spectrum[:N//2])    # Phase
     
     # Previous frame 1
-    windowed_prev_1 = signal_prev_1 * hann
+    windowed_prev_1 = frame_prev_1 * hann
     spectrum_prev_1 = fft(windowed_prev_1)
     r_prev_1 = np.abs(spectrum_prev_1[:N//2])
     f_prev_1 = np.angle(spectrum_prev_1[:N//2])
     
     # Previous frame 2
-    windowed_prev_2 = signal_prev_2 * hann
+    windowed_prev_2 = frame_prev_2 * hann
     spectrum_prev_2 = fft(windowed_prev_2)
     r_prev_2 = np.abs(spectrum_prev_2[:N//2])
     f_prev_2 = np.angle(spectrum_prev_2[:N//2])
