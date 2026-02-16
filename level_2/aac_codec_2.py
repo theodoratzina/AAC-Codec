@@ -1,6 +1,8 @@
 import numpy as np
 import soundfile as sf
-from aac_ssc_filterbank import SSC, filter_bank, i_filter_bank
+import time
+from aac_ssc import SSC
+from aac_filterbank import filter_bank, i_filter_bank
 from aac_tns import tns, i_tns
 
 
@@ -18,7 +20,6 @@ def aac_coder_2(filename_in):
                     - 'chl': dict with 'frame_F' (MDCT after TNS) and 'tns_coeffs'
                     - 'chr': dict with 'frame_F' (MDCT after TNS) and 'tns_coeffs'
     """
-    
     # Read audio file
     audio, fs = sf.read(filename_in)
     
@@ -118,7 +119,6 @@ def i_aac_coder_2(aac_seq_2, filename_out):
     Returns:
         x: Decoded audio signal (numpy array, shape: (num_samples, 2))
     """
-
     # Get number of frames
     K = len(aac_seq_2)
     
@@ -195,7 +195,6 @@ def demo_aac_2(filename_in, filename_out):
     Returns:
         SNR: Signal-to-Noise Ratio in dB
     """
-
     # Load original audio
     original, fs = sf.read(filename_in)
     
@@ -204,14 +203,18 @@ def demo_aac_2(filename_in, filename_out):
         original = original.reshape(-1, 1)
     
     # Encode
-    print("Encoding with TNS...")
+    print("Encoding...")
+    start_time = time.time()
     aac_seq_2 = aac_coder_2(filename_in)
-    print(f"Encoded {len(aac_seq_2)} frames")
+    encode_time = time.time() - start_time
+    print(f"Encoded {len(aac_seq_2)} frames in {encode_time:.2f} seconds")
     
     # Decode
     print("Decoding...")
+    start_time = time.time()
     decoded = i_aac_coder_2(aac_seq_2, filename_out)
-    print(f"Decoded audio shape: {decoded.shape}")
+    decode_time = time.time() - start_time
+    print(f"Decoded {len(aac_seq_2)} frames in {decode_time:.2f} seconds")
     
     # If original was mono, compare only first channel
     if original.shape[1] == 1 and decoded.shape[1] == 2:

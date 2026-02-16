@@ -20,7 +20,7 @@ def psycho(frame_T, frame_type, frame_T_prev_1, frame_T_prev_2):
     """
     tables = _load_band_tables()
 
-    # Handle first frames
+    # Handle first two frames where previous frames are not available
     if frame_T_prev_1 is None:
         frame_T_prev_1 = np.zeros_like(frame_T)
     if frame_T_prev_2 is None:

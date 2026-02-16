@@ -1,13 +1,11 @@
 import numpy as np
 from scipy.signal.windows import kaiser
 
-
 # Global caches
 _mdct_cache = {}
 _i_mdct_cache = {}
 
 
-# Create Kaiser-Bessel-Derived (KBD) window
 def kbd_window(N, alpha=None):
     """
     Kaiser-Bessel-Derived (KBD) window for MDCT.
@@ -21,7 +19,6 @@ def kbd_window(N, alpha=None):
     Returns:
         window: NumPy array of shape (N,) containing KBD window values
     """
-    
     if alpha is None:
         alpha = 6 if N == 2048 else 4  # AAC standard values
 
@@ -41,7 +38,6 @@ def kbd_window(N, alpha=None):
     return np.concatenate([kbd_left, kbd_right])
 
 
-# Create sinusoid window
 def sin_window(N):
     """
     Sinusoid window for MDCT.
@@ -59,7 +55,6 @@ def sin_window(N):
     return sin
 
 
-# Modified Discrete Cosine Transform (MDCT)
 def mdct(x, N):
     """
     Modified Discrete Cosine Transform (MDCT).
@@ -75,12 +70,10 @@ def mdct(x, N):
            - 1024 coefficients for N=2048
            - 128 coefficients for N=256
     """
-    
     global _mdct_cache
     
     # Check if cosine matrix for this N is already cached
     if N not in _mdct_cache:
-    
         n0 = (N / 2 + 1) / 2
         
         # Create index arrays
@@ -100,7 +93,6 @@ def mdct(x, N):
     return X
 
 
-# Inverse Modified Discrete Cosine Transform (IMDCT)
 def i_mdct(X, N):
     """
     Inverse Modified Discrete Cosine Transform (IMDCT).
@@ -115,12 +107,10 @@ def i_mdct(X, N):
         x: Reconstructed time-domain signal, NumPy array of shape (N,)
            Still requires windowing and overlap-add for final reconstruction
     """
-    
     global _i_mdct_cache
     
     # Check if cosine matrix is already cached
     if N not in _i_mdct_cache:
-
         n0 = (N / 2 + 1) / 2
         
         # Create index arrays

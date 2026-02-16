@@ -37,7 +37,6 @@ def tns(frame_F_in, frame_type):
                     - Shape (4,) for long frames
                     - Shape (4, 8) for ESH (one set per subframe)
     """
-
     # Load tables (cached after first call)
     tables = _load_band_tables()
 
@@ -76,7 +75,6 @@ def _process_tns(X, bands):
         X_filtered: TNS-filtered coefficients (or X unchanged if failed)
         a_quantized: Quantized LP coefficients [4,] (or zeros if failed)
     """
-
     N = len(X)
     num_bands = len(bands)
     
@@ -154,7 +152,6 @@ def i_tns(frame_F_in, frame_type, tns_coeffs):
     Returns:
         frame_F_out: Reconstructed MDCT coefficients (same shape as input)
     """
-    
     if frame_type == "ESH":
         # Short frames: 8 subframes, use Table B.2.1.9.b
         frame_F_out = np.zeros((128, 8))
@@ -183,7 +180,6 @@ def _inverse_tns(X, a):
     Returns:
         X_reconstructed: Original coefficients
     """
-    
     N = len(X)
     p = len(a)
     X_reconstructed = np.zeros(N)
