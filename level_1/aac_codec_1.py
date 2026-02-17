@@ -193,8 +193,7 @@ def demo_aac_1(filename_in, filename_out):
     
     # If original was mono, compare only first channel
     if original.shape[1] == 1 and decoded.shape[1] == 2:
-        # Original was mono, decoder made stereo (both channels identical)
-        decoded = decoded[:, :1]  # Use only left channel for fair comparison
+        decoded = decoded[:, :1]
     
     # Match lengths
     min_length = min(len(original), len(decoded))

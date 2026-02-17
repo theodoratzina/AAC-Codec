@@ -34,6 +34,8 @@ def main():
 
     # Get audio information
     audio, fs = sf.read(input_file)
+    if audio.ndim == 1:
+        audio = audio.reshape(-1, 1)
     duration = len(audio) / fs
 
     # Analyze frame types
@@ -48,7 +50,10 @@ def main():
     print(f"Sample rate:  {fs} Hz")
     print(f"Total frames: {len(aac_seq_1)}")
     print(f"Frame types:  OLS={frame_counts['OLS']}, LSS={frame_counts['LSS']}, ESH={frame_counts['ESH']}, LPS={frame_counts['LPS']}")
-    print(f"Final SNR:    {SNR:.2f} dB")
+    
+    # Audio Quality
+    print("\n" + "Audio Quality:" + "\n")
+    print(f"SNR: {SNR:.2f} dB")
     
     # Interpret the result
     if SNR > 100:
