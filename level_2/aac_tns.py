@@ -117,7 +117,7 @@ def _process_tns(X, bands):
         return X.copy(), np.zeros(4)
     
     # Step 3: Quantize
-    a_quantized = np.clip(np.round(a / 0.1) * 0.1, -1.5, 1.5)
+    a_quantized = np.clip(np.round(a / 0.1) * 0.1, -0.75, 0.75)
     
     # Step 4: Check stability
     # Inverse filter is stable if all poles are inside unit circle |z| < 1

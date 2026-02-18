@@ -127,7 +127,7 @@ def aac_coder_3(filename_in, filename_aac_coded):
 
             else:
                 # Long frames: Single scale factor vector
-                sfc_encoded, _ = encode_huff(sfc, huff_LUT_list, force_codebook=11)
+                sfc_encoded, _ = encode_huff(sfc, huff_LUT_list)
 
             # Store channel data
             channel_data.append({

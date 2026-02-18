@@ -32,16 +32,33 @@ def psycho(frame_T, frame_type, frame_T_prev_1, frame_T_prev_2):
         bands = tables['B219b']
         SMR = np.zeros((42, 8))
 
-        # Process each subframe
-        for i in range(8):
-            # Extract 256-sample subframe from center region
-            start = 448 + i * 128
-            subframe = frame_T[start:start+256]
-            subframe_prev_1 = frame_T_prev_1[start:start+256]
-            subframe_prev_2 = frame_T_prev_2[start:start+256]
+        # Pre-extract all subframes from all three frames
+        def get_subframes(frame):
+            subframes = []
+            for i in range(8):
+                start = 448 + i * 128
+                subframes.append(frame[start:start+256])
+            return subframes  # List of 8 subframes
 
-            # Compute SMR for this subframe
-            SMR[:, i] = _process_frame(subframe, subframe_prev_1, subframe_prev_2, bands)
+        curr_subs  = get_subframes(frame_T)
+        prev1_subs = get_subframes(frame_T_prev_1)
+
+        for i in range(8):
+            # Determine the two preceding subframes
+            if i == 0:
+                # Need subframe 7 and 6 of previous frame
+                sub_prev_1 = prev1_subs[7]
+                sub_prev_2 = prev1_subs[6]
+            elif i == 1:
+                # Need subframe 0 of current and subframe 7 of previous
+                sub_prev_1 = curr_subs[0]
+                sub_prev_2 = prev1_subs[7]
+            else:
+                # i >= 2: both preceding subframes are in current frame
+                sub_prev_1 = curr_subs[i-1]
+                sub_prev_2 = curr_subs[i-2]
+
+            SMR[:, i] = _process_frame(curr_subs[i], sub_prev_1, sub_prev_2, bands)
 
     else:  # OLS/LSS/LPS
         # Long frames: use Table B.2.1.9.a
@@ -58,7 +75,7 @@ def _process_frame(frame, frame_prev_1, frame_prev_2, bands):
     Args:
         frame: Current frame samples (2048,) or (256,)
         frame_prev1, frame_prev2: Previous frames (same shape)
-        bands: Critical band table (B219a or B219b) - 13 bands
+        bands: Critical band table (B219a or B219b)
     
     Returns:
         SMR: Signal-to-Mask Ratio per scalefactor band
@@ -66,13 +83,7 @@ def _process_frame(frame, frame_prev_1, frame_prev_2, bands):
             - Length 42 for short frames (N=256)
     """
     N = len(frame)
-    num_bands = len(bands)  # 13 critical bands
-    
-    # Determine number of scalefactor bands
-    if N == 2048:
-        num_sf_bands = 69  # Long frames
-    else:  # N == 256
-        num_sf_bands = 42  # Short frames
+    num_bands = len(bands)  # 69 for long frames, 42 for short frames
 
     # NOTE: Step 1 (Spreading Function) is defined as a formula and implemented later in Step 6
     
@@ -180,11 +191,8 @@ def _process_frame(frame, frame_prev_1, frame_prev_2, bands):
     # Apply maximum between masking threshold and absolute hearing threshold
     npart = np.maximum(nb, qthr)
     
-    # Steps 12: Compute SMR
-    SMR = 10 * np.log10(e / (npart + 1e-10))  # Add small value to avoid log(0)
-
-    # Map from 13 critical bands to scalefactor bands (69 or 42)
-    SMR = np.interp(np.linspace(0, num_bands - 1, num_sf_bands), np.arange(num_bands), SMR)
+    # Steps 12: Compute SMR in dB
+    SMR = 10 * np.log10((e + 1e-10) / (npart + 1e-10))  # Add small value to avoid log(0)
 
     # NOTE: Step 13 (computing T[b] thresholds) is implemented in aac_quantizer.py
     

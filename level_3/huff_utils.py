@@ -13,7 +13,8 @@ def load_LUT(mat_filename=None):
     """
     if mat_filename is None:
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        mat_filename = os.path.join(current_dir, "huffCodebooks.mat")
+        project_root = os.path.dirname(current_dir)  # Go one level up
+        mat_filename = os.path.join(project_root, "material", "huffCodebooks.mat")
 
     mat = sio.loadmat(mat_filename)
 

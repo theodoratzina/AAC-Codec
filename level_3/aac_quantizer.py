@@ -49,17 +49,13 @@ def aac_quantizer(frame_F, frame_type, SMR):
 
         # Correct output formats
         G = np.array([G])
-        sfc = sfc.astype(int)
     
     return S, sfc, G
 
 
 def _quantize_subframe(X, SMR, bands):
     """
-    Quantize one subframe or full frame for ONE channel.
-    
-    Implements Steps 13 (threshold computation) and full quantization algorithm
-    from Section 2.6 of the specification.
+    Quantize one subframe or full frame for one channel.
     
     Args:
         X: MDCT coefficients - (1024,) for long or (128,) for short
@@ -89,7 +85,7 @@ def _quantize_subframe(X, SMR, bands):
     # Step 1: Calculate initial scale factor estimate for all bands
     max_X = np.max(np.abs(X))
     if max_X < 1e-10:  # Essentially silence
-        return np.zeros(N, dtype=int), np.zeros(num_bands), 0.0
+        return np.zeros(N, dtype=int), np.zeros(num_bands, dtype=int), 0.0
     
     MQ = 8191  # Maximum quantization levels
     alpha_hat = (16/3) * np.log2(max(max_X ** 0.75, 1e-10) / MQ)
@@ -126,10 +122,8 @@ def _quantize_subframe(X, SMR, bands):
         bands_to_increase = (Pe < T)  # Error below threshold
         
         # Also check maximum difference constraint
-        if num_bands > 1:
-            max_diff = np.max(np.abs(np.diff(alpha)))
-            if max_diff > MAX_SCALEFACTOR:
-                break  # Stop if constraint violated
+        if num_bands > 1 and np.max(np.abs(np.diff(alpha))) > MAX_SCALEFACTOR:
+            break  # Stop if constraint violated
         
         # If no bands can be increased, we're done
         if not np.any(bands_to_increase):
@@ -142,16 +136,28 @@ def _quantize_subframe(X, SMR, bands):
         for b in np.where(bands_to_increase)[0]:
             w_low = int(bands[b, 1])
             w_high = min(int(bands[b, 2]), N)
-            if w_low < N:
-                # Apply band-specific alpha
-                S[w_low:w_high] = _quantize(X[w_low:w_high], alpha[b])
-                X_hat[w_low:w_high] = _dequantize(S[w_low:w_high], alpha[b])
+            if w_low < N and w_high > w_low:
+
+                # Check constraint for this specific band before accepting
+                max_diff = np.max(np.abs(np.diff(alpha))) if num_bands > 1 else 0
+                if max_diff > MAX_SCALEFACTOR:
+                    alpha[b] -= 1  # Revert the increase
+                    continue
+
+                S_new = _quantize(X[w_low:w_high], alpha[b])
+                Pe_new = np.sum((X[w_low:w_high] - _dequantize(S_new, alpha[b]))**2)
+
+                if Pe_new < T[b]:  # Only accept if still below threshold
+                    S[w_low:w_high] = S_new
+                    X_hat[w_low:w_high] = _dequantize(S_new, alpha[b])
+                else:  # Revert immediately
+                    alpha[b] -= 1
     
     # Global gain is the first scale factor
     G = float(alpha[0])
 
     # DPCM encoding: sfc[b] = alpha[b] - alpha[b-1]
-    sfc = np.zeros(num_bands)
+    sfc = np.zeros(num_bands, dtype=int)
     sfc[0] = alpha[0]
     for b in range(1, num_bands):
         sfc[b] = alpha[b] - alpha[b-1]  # Differential encoding
