@@ -123,13 +123,13 @@ def aac_coder_3(filename_in, filename_aac_coded):
                 sfc_encoded = []
                 sfc_codebook = []
                 for sub in range(8):
-                    sfc_sub, codebook_sub = encode_huff(sfc[:, sub], huff_LUT_list)
+                    sfc_sub, codebook_sub = encode_huff(sfc[1:, sub], huff_LUT_list)
                     sfc_encoded.append(sfc_sub)
                     sfc_codebook.append(codebook_sub)
 
             else:
                 # Long frames: Single scale factor vector
-                sfc_encoded, sfc_codebook = encode_huff(sfc, huff_LUT_list)
+                sfc_encoded, sfc_codebook = encode_huff(sfc[1:], huff_LUT_list)
 
             # Store channel data
             channel_data.append({
@@ -260,29 +260,33 @@ def i_aac_coder_3(aac_seq_3, filename_out):
             stream = ch_data['stream']
             S = np.array(decode_huff(stream, huff_LUT_list[codebook]))
 
+            # Global gain
+            G = ch_data['G']
+
             # Huffman decoding for scale factors
             if frame_type == "ESH":
                 # ESH: Decode each subframe's scale factors
                 sfc = np.zeros((42, 8))
                 for sub in range(8):
-                    sfc_cοdebook = ch_data['sfc_codebook'][sub]
-                    if sfc_cοdebook == 0:
-                        # All-zero section: stream is empty, sfc stays zero
-                        pass
-                    else:
-                        decoded = np.array(decode_huff(ch_data['sfc'][sub], huff_LUT_list[sfc_cοdebook]))
-                        sfc[:, sub] = decoded[:42]
+                    sfc_codebook = ch_data['sfc_codebook'][sub]
+                    sfc[0, sub] = G[sub]  # Insert global gain at index 0
+
+                    if sfc_codebook != 0:
+                        decoded = np.array(decode_huff(ch_data['sfc'][sub], huff_LUT_list[sfc_codebook]))
+                        # Insert the 41 decoded differences starting from index 1
+                        sfc[1:, sub] = decoded[:41]
             else:
                 # Long frames: Single scale factor vector
-                sfc_cοdebook = ch_data['sfc_codebook']
-                if sfc_cοdebook == 0:
-                    sfc = np.zeros(69)
-                else:
-                    decoded = np.array(decode_huff(ch_data['sfc'], huff_LUT_list[sfc_cοdebook]))
-                    sfc = decoded[:69]
+                sfc = np.zeros(69)
+                sfc_codebook = ch_data['sfc_codebook']
+                
+                # Handle G depending on whether it was saved as a scalar or a 1D array
+                sfc[0] = G[0] if isinstance(G, (list, np.ndarray)) else G
 
-            # Global gain
-            G = ch_data['G']
+                if sfc_codebook != 0:
+                    decoded = np.array(decode_huff(ch_data['sfc'], huff_LUT_list[sfc_codebook]))
+                    # Insert the 68 decoded differences starting from index 1
+                    sfc[1:] = decoded[:68]
 
             # Inverse Quantization
             frame_F_dequantized = i_aac_quantizer(S, sfc, G, frame_type)

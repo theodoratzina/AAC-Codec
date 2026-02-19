@@ -131,8 +131,8 @@ def _process_frame(frame, frame_prev_1, frame_prev_2, bands):
         w_high = min(int(bands[b, 2]), N//2)  # Upper FFT bin
 
         if w_low < N//2:
-            e[b] = np.sum(r[w_low:w_high]**2)
-            c[b] = np.sum(c_pred[w_low:w_high] * r[w_low:w_high]**2)
+            e[b] = np.sum(r[w_low:w_high + 1]**2)
+            c[b] = np.sum(c_pred[w_low:w_high + 1] * r[w_low:w_high + 1]**2)
     
     # Step 6: Apply spreading function
     bval = bands[:, 4]  # Bark values for each band
@@ -191,8 +191,8 @@ def _process_frame(frame, frame_prev_1, frame_prev_2, bands):
     # Apply maximum between masking threshold and absolute hearing threshold
     npart = np.maximum(nb, qthr)
     
-    # Steps 12: Compute SMR in dB
-    SMR = 10 * np.log10((e + 1e-10) / (npart + 1e-10))  # Add small value to avoid log(0)
+    # Steps 12: Compute SMR
+    SMR = (e + 1e-10) / (npart + 1e-10)  # Add small value to avoid log(0)
 
     # NOTE: Step 13 (computing T[b] thresholds) is implemented in aac_quantizer.py
     

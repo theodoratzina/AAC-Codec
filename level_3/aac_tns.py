@@ -85,7 +85,7 @@ def _process_tns(X, bands):
         w_low = int(bands[j, 1])
         w_high = min(int(bands[j, 2]), N)
         if w_low < N:
-            P[j] = np.sum(X[w_low:w_high] ** 2)
+            P[j] = np.sum(X[w_low:w_high + 1] ** 2)
     
     # Create Sw array for normalization
     Sw = np.zeros(N)
@@ -93,7 +93,7 @@ def _process_tns(X, bands):
         w_low = int(bands[j, 1])
         w_high = min(int(bands[j, 2]), N)
         if w_low < N:
-            Sw[w_low:w_high] = np.sqrt(P[j]) if P[j] > 0 else 1.0
+            Sw[w_low:w_high + 1] = np.sqrt(P[j]) if P[j] > 0 else 1.0
     
     # Smooth Sw to avoid sharp transitions
     for k in range(N-2, -1, -1):

@@ -76,11 +76,10 @@ def _quantize_subframe(X, SMR, bands):
         w_low = int(bands[b, 1])
         w_high = min(int(bands[b, 2]), N)
         if w_low < N and w_high > w_low:
-            P[b] = np.sum(X[w_low:w_high] ** 2)
+            P[b] = np.sum(X[w_low:w_high + 1] ** 2)
     
-    # Compute energy thresholds T[b] from SMR (convert from dB)
-    SMR_linear = 10 ** (SMR / 10.0)
-    T = P / (SMR_linear + 1e-10)  # Avoid division by zero
+    # Compute energy thresholds T[b] from SMR
+    T = P / (SMR + 1e-10)  # Avoid division by zero
     
     # Step 1: Calculate initial scale factor estimate for all bands
     max_X = np.max(np.abs(X))
@@ -102,8 +101,8 @@ def _quantize_subframe(X, SMR, bands):
         w_low = int(bands[b, 1])
         w_high = min(int(bands[b, 2]), N)
         if w_low < N:
-            S[w_low:w_high] = _quantize(X[w_low:w_high], alpha[b])
-            X_hat[w_low:w_high] = _dequantize(S[w_low:w_high], alpha[b])
+            S[w_low:w_high + 1] = _quantize(X[w_low:w_high + 1], alpha[b])
+            X_hat[w_low:w_high + 1] = _dequantize(S[w_low:w_high + 1], alpha[b])
 
     # Step 2: Iterative optimization loop
     # Skip iteration entirely if already all zeros
@@ -117,7 +116,7 @@ def _quantize_subframe(X, SMR, bands):
             w_low = int(bands[b, 1])
             w_high = min(int(bands[b, 2]), N)
             if w_low < N and w_high > w_low:
-                Pe[b] = np.sum((X[w_low:w_high] - X_hat[w_low:w_high]) ** 2)
+                Pe[b] = np.sum((X[w_low:w_high + 1] - X_hat[w_low:w_high + 1]) ** 2)
         
         # Check which bands can be quantized more coarsely
         bands_to_increase = (Pe < T)  # Error below threshold
@@ -147,12 +146,12 @@ def _quantize_subframe(X, SMR, bands):
                 alpha[b] -= 1
                 continue
 
-            S_new = _quantize(X[w_low:w_high], alpha[b])
-            Pe_new = np.sum((X[w_low:w_high] - _dequantize(S_new, alpha[b]))**2)
+            S_new = _quantize(X[w_low:w_high + 1], alpha[b])
+            Pe_new = np.sum((X[w_low:w_high + 1] - _dequantize(S_new, alpha[b]))**2)
 
             if Pe_new < T[b]:  # Only accept if still below threshold
-                S[w_low:w_high] = S_new
-                X_hat[w_low:w_high] = _dequantize(S_new, alpha[b])
+                S[w_low:w_high + 1] = S_new
+                X_hat[w_low:w_high + 1] = _dequantize(S_new, alpha[b])
             else:  # Revert immediately
                 alpha[b] -= 1
     
@@ -252,7 +251,7 @@ def _dequantize_subframe(S, sfc, G, bands):
 
         if w_low < N and w_high > w_low:
             # Apply dequantization
-            X_hat[w_low:w_high] = _dequantize(S[w_low:w_high], alpha[b])
+            X_hat[w_low:w_high + 1] = _dequantize(S[w_low:w_high + 1], alpha[b])
     
     return X_hat
 
