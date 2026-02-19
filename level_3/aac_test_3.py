@@ -16,38 +16,6 @@ def analyze_frame_types(aac_seq_3):
     return counts
 
 
-# def analyze_compression(aac_seq_3):
-#     """Analyze bit allocation for compression statistics."""
-#     mdct_bits = 0
-#     sfc_bits = 0
-
-#     for frame in aac_seq_3:
-#         # Count MDCT bits
-#         mdct_bits += len(frame['chl']['stream'])
-#         mdct_bits += len(frame['chr']['stream'])
-
-#         # Count scale factor bits
-#         if isinstance(frame['chl']['sfc'], list):
-#             # ESH: Multiple subframes
-#             for sfc_sub in frame['chl']['sfc']:
-#                 sfc_bits += len(sfc_sub)
-#             for sfc_sub in frame['chr']['sfc']:
-#                 sfc_bits += len(sfc_sub)
-#         else:
-#             # Long frames
-#             sfc_bits += len(frame['chl']['sfc'])
-#             sfc_bits += len(frame['chr']['sfc'])
-
-#     total_bits = mdct_bits + sfc_bits
-#     return {
-#         'total_bits': total_bits,
-#         'mdct_bits': mdct_bits,
-#         'sfc_bits': sfc_bits,
-#         'mdct_percent': (mdct_bits / total_bits * 100) if total_bits > 0 else 0,
-#         'sfc_percent': (sfc_bits / total_bits * 100) if total_bits > 0 else 0
-#     }
-
-
 def main():
     """Main function to run the AAC Level 3 encoder/decoder demo."""
 
@@ -74,7 +42,6 @@ def main():
     # Analyze frame types and compression
     aac_seq_3 = aac_coder_3(input_file, coded_file)
     frame_counts = analyze_frame_types(aac_seq_3)
-    # comp_stats = analyze_compression(aac_seq_3)
 
     # Summary
     print("\n" + "✓ Encoding/Decoding Complete!" + "\n")
@@ -92,9 +59,6 @@ def main():
     print(f"Original bitrate: {original_bitrate/1000:.1f} kbps ({fs/1000:.0f} kHz, 16-bit stereo)")
     print(f"Compressed bitrate: {bitrate/1000:.1f} kbps")
     print(f"Compression ratio: {compression:.2f}x")
-    # print(f"Total bits: {comp_stats['total_bits']:,}")
-    # print(f"  - MDCT coefficients: {comp_stats['mdct_bits']:,} bits ({comp_stats['mdct_percent']:.1f}%)")
-    # print(f"  - Scale factors: {comp_stats['sfc_bits']:,} bits ({comp_stats['sfc_percent']:.1f}%)")
 
     # Audio Quality
     print("\n" + "Audio Quality:" + "\n")

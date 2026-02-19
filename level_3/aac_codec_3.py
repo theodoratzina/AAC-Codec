@@ -37,7 +37,7 @@ def aac_coder_3(filename_in, filename_aac_coded):
     assert audio.shape[1] == 2, f"Audio must be stereo, got {audio.shape[1]} channels"
 
     # AAC parameters
-    win_type = "KBD"
+    win_type = "KBD"  # Window type (can be "KBD" or "SIN")
     frame_size = 2048
     hop_size = 1024  # 50% overlap
 
@@ -121,13 +121,15 @@ def aac_coder_3(filename_in, filename_aac_coded):
             if frame_type == "ESH":
                 # ESH: Encode each subframe's scale factors separately
                 sfc_encoded = []
+                sfc_codebook = []
                 for sub in range(8):
-                    sfc_sub, _ = encode_huff(sfc[:, sub], huff_LUT_list, force_codebook=11)
+                    sfc_sub, codebook_sub = encode_huff(sfc[:, sub], huff_LUT_list)
                     sfc_encoded.append(sfc_sub)
+                    sfc_codebook.append(codebook_sub)
 
             else:
                 # Long frames: Single scale factor vector
-                sfc_encoded, _ = encode_huff(sfc, huff_LUT_list)
+                sfc_encoded, sfc_codebook = encode_huff(sfc, huff_LUT_list)
 
             # Store channel data
             channel_data.append({
@@ -135,6 +137,7 @@ def aac_coder_3(filename_in, filename_aac_coded):
                 'T': T,
                 'G': G,
                 'sfc': sfc_encoded,
+                'sfc_codebook': sfc_codebook,
                 'stream': stream,
                 'codebook': codebook
             })
@@ -262,10 +265,21 @@ def i_aac_coder_3(aac_seq_3, filename_out):
                 # ESH: Decode each subframe's scale factors
                 sfc = np.zeros((42, 8))
                 for sub in range(8):
-                    sfc[:, sub] = np.array(decode_huff(ch_data['sfc'][sub], huff_LUT_list[11]))
+                    sfc_cοdebook = ch_data['sfc_codebook'][sub]
+                    if sfc_cοdebook == 0:
+                        # All-zero section: stream is empty, sfc stays zero
+                        pass
+                    else:
+                        decoded = np.array(decode_huff(ch_data['sfc'][sub], huff_LUT_list[sfc_cοdebook]))
+                        sfc[:, sub] = decoded[:42]
             else:
                 # Long frames: Single scale factor vector
-                sfc = np.array(decode_huff(ch_data['sfc'], huff_LUT_list[11]))
+                sfc_cοdebook = ch_data['sfc_codebook']
+                if sfc_cοdebook == 0:
+                    sfc = np.zeros(69)
+                else:
+                    decoded = np.array(decode_huff(ch_data['sfc'], huff_LUT_list[sfc_cοdebook]))
+                    sfc = decoded[:69]
 
             # Global gain
             G = ch_data['G']

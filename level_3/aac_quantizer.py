@@ -106,7 +106,8 @@ def _quantize_subframe(X, SMR, bands):
             X_hat[w_low:w_high] = _dequantize(S[w_low:w_high], alpha[b])
 
     # Step 2: Iterative optimization loop
-    max_iterations = 100  # Safety limit
+    # Skip iteration entirely if already all zeros
+    max_iterations = 0 if np.all(S == 0) else 100
 
     for iteration in range(max_iterations):
         # Compute quantization error power per band
@@ -121,10 +122,6 @@ def _quantize_subframe(X, SMR, bands):
         # Check which bands can be quantized more coarsely
         bands_to_increase = (Pe < T)  # Error below threshold
         
-        # Also check maximum difference constraint
-        if num_bands > 1 and np.max(np.abs(np.diff(alpha))) > MAX_SCALEFACTOR:
-            break  # Stop if constraint violated
-        
         # If no bands can be increased, we're done
         if not np.any(bands_to_increase):
             break
@@ -136,22 +133,28 @@ def _quantize_subframe(X, SMR, bands):
         for b in np.where(bands_to_increase)[0]:
             w_low = int(bands[b, 1])
             w_high = min(int(bands[b, 2]), N)
-            if w_low < N and w_high > w_low:
 
-                # Check constraint for this specific band before accepting
-                max_diff = np.max(np.abs(np.diff(alpha))) if num_bands > 1 else 0
+            # Always check the max-difference constraint first.
+            # If violated, revert this band regardless of whether it is in-range.
+            if num_bands > 1:
+                max_diff = np.max(np.abs(np.diff(alpha)))
                 if max_diff > MAX_SCALEFACTOR:
-                    alpha[b] -= 1  # Revert the increase
+                    alpha[b] -= 1
                     continue
 
-                S_new = _quantize(X[w_low:w_high], alpha[b])
-                Pe_new = np.sum((X[w_low:w_high] - _dequantize(S_new, alpha[b]))**2)
+            # Out-of-range band: no coefficients to quantize, revert.
+            if w_low >= N or w_high <= w_low:
+                alpha[b] -= 1
+                continue
 
-                if Pe_new < T[b]:  # Only accept if still below threshold
-                    S[w_low:w_high] = S_new
-                    X_hat[w_low:w_high] = _dequantize(S_new, alpha[b])
-                else:  # Revert immediately
-                    alpha[b] -= 1
+            S_new = _quantize(X[w_low:w_high], alpha[b])
+            Pe_new = np.sum((X[w_low:w_high] - _dequantize(S_new, alpha[b]))**2)
+
+            if Pe_new < T[b]:  # Only accept if still below threshold
+                S[w_low:w_high] = S_new
+                X_hat[w_low:w_high] = _dequantize(S_new, alpha[b])
+            else:  # Revert immediately
+                alpha[b] -= 1
     
     # Global gain is the first scale factor
     G = float(alpha[0])
