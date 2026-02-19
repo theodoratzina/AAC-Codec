@@ -3,7 +3,8 @@ import numpy as np
 import soundfile as sf
 import matplotlib.pyplot as plt
 from pathlib import Path
-from aac_codec_3 import demo_aac_3, aac_coder_3
+from scipy.io import loadmat
+from aac_codec_3 import demo_aac_3
 
 
 def analyze_frame_types(aac_seq_3):
@@ -60,7 +61,7 @@ def main():
     coded_file = os.path.join(os.path.dirname(__file__), 'aac_coded_level3.mat')
 
     print("="*60)
-    print("AAC Level 3 Encoder/Decoder Test (Full Codec)")
+    print("AAC Level 3 Encoder/Decoder (Full Codec)")
     print("="*60)
 
     # Run the demo
@@ -72,8 +73,11 @@ def main():
         audio = audio.reshape(-1, 1)
     duration = len(audio) / fs
 
-    # Analyze frame types and compression
-    aac_seq_3 = aac_coder_3(input_file, coded_file)
+    # Load the already-encoded data
+    mat_data = loadmat(coded_file, simplify_cells=True)
+    aac_seq_3 = mat_data['aac_seq_3']
+
+    # Count frame types
     frame_counts = analyze_frame_types(aac_seq_3)
 
     # Calculate original bitrate (for reference)

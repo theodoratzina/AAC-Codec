@@ -153,6 +153,15 @@ def aac_coder_3(filename_in, filename_aac_coded):
         # Update previous frame type
         prev_frame_type = frame_type
 
+        # Print progress bar
+        progress = (i + 1) / K
+        bar_length = 40
+        filled_length = int(bar_length * progress)
+        bar = '█' * filled_length + '-' * (bar_length - filled_length)
+        print(f'\rEncoding: |{bar}| {progress * 100:.1f}%', end='\r')
+
+    print()
+    
     # Save to .mat file
     sio.savemat(filename_aac_coded, {'aac_seq_3': aac_seq_3})
 
@@ -313,6 +322,15 @@ def i_aac_coder_3(aac_seq_3, filename_out):
         end = start + frame_size
         x[start:end, :] += frame_T
 
+        # Print progress bar
+        progress = (i + 1) / K
+        bar_length = 40
+        filled_length = int(bar_length * progress)
+        bar = '█' * filled_length + '-' * (bar_length - filled_length)
+        print(f'\rDecoding: |{bar}| {progress * 100:.1f}%', end='\r')
+
+    print()
+
     # Remove the 1024 samples of padding from start and end
     x = x[hop_size:-hop_size, :]
 
@@ -357,7 +375,6 @@ def demo_aac_3(filename_in, filename_out, filename_aac_coded):
         original = original.reshape(-1, 1)
 
     # Encode
-    print("Encoding...")
     start_time = time.time()
     aac_seq_3 = aac_coder_3(filename_in, filename_aac_coded)
     encode_time = time.time() - start_time
@@ -390,7 +407,6 @@ def demo_aac_3(filename_in, filename_out, filename_aac_coded):
     compression = original_bitrate / bitrate
 
     # Decode
-    print("Decoding...")
     start_time = time.time()
     decoded = i_aac_coder_3(aac_seq_3, filename_out)
     decode_time = time.time() - start_time
