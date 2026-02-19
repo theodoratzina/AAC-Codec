@@ -1,5 +1,7 @@
 import os
+import numpy as np
 import soundfile as sf
+import matplotlib.pyplot as plt
 from pathlib import Path
 from aac_codec_3 import demo_aac_3, aac_coder_3
 
@@ -27,6 +29,24 @@ def make_clickable(file_path, display_text=None):
     file_uri = Path(os.path.abspath(file_path)).as_uri()
     
     return f"\033]8;;{file_uri}\a{display_text}\033]8;;\a"
+
+
+def plot_masking_threshold(frame_data, frame_index=50):
+    """Plots the masking threshold T against the MDCT coefficients for a single random frame."""
+
+    ch_data = frame_data[frame_index]['chl']
+    T = ch_data['T']
+    
+    # NOTE: To plot this perfectly, would load TableB219a and expand T values to match 1024 frequency bins.
+    
+    plt.figure(figsize=(10, 5))
+    plt.plot(10 * np.log10(T + 1e-10), color='red', label='Masking Threshold T(b)', drawstyle='steps-post')
+    plt.title(f"Psychoacoustic Masking Threshold (Random Frame {frame_index})")
+    plt.xlabel("Scalefactor Band")
+    plt.ylabel("Magnitude (dB)")
+    plt.legend()
+    plt.grid(True, linestyle='--', alpha=0.6)
+    plt.show()
 
 
 def main():
@@ -90,6 +110,8 @@ def main():
         print("Quality: Poor")
 
     print("="*60)
+
+    plot_masking_threshold(aac_seq_3)
 
 
 if __name__ == "__main__":
