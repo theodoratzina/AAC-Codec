@@ -158,7 +158,7 @@ def _process_frame(frame, frame_prev_1, frame_prev_2, bands):
             if tmpy < -100:
                 sf = 0.0
             else:
-                sf = 10**(tmpz + tmpy / 10.0)
+                sf = 10**((tmpz + tmpy) / 10.0)
             
             ecb[b] += e[bb] * sf
             ct[b] += c[bb] * sf

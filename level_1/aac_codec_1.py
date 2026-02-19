@@ -209,6 +209,4 @@ def demo_aac_1(filename_in, filename_out):
     else:
         SNR = 10 * np.log10(signal_power / noise_power)
     
-    print(f"SNR: {SNR:.2f} dB")
-    
     return SNR

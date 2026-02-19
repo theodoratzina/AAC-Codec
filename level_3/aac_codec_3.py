@@ -414,8 +414,4 @@ def demo_aac_3(filename_in, filename_out, filename_aac_coded):
     else:
         SNR = 10 * np.log10(signal_power / noise_power)
 
-    print(f"SNR: {SNR:.2f} dB")
-    print(f"Bitrate: {bitrate:.0f} bits/sec ({bitrate/1000:.1f} kbps)")
-    print(f"Compression: {compression:.2f}x")
-
     return SNR, bitrate, compression

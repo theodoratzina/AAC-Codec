@@ -96,64 +96,50 @@ def _quantize_subframe(X, SMR, bands):
     S = np.zeros(N, dtype=int)
     X_hat = np.zeros(N)
 
-    # Initial quantization
+    # Step 2: Iterative optimization loop per band
     for b in range(num_bands):
         w_low = int(bands[b, 1])
         w_high = min(int(bands[b, 2]), N)
-        if w_low < N:
-            S[w_low:w_high + 1] = _quantize(X[w_low:w_high + 1], alpha[b])
-            X_hat[w_low:w_high + 1] = _dequantize(S[w_low:w_high + 1], alpha[b])
-
-    # Step 2: Iterative optimization loop
-    # Skip iteration entirely if already all zeros
-    max_iterations = 0 if np.all(S == 0) else 100
-
-    for iteration in range(max_iterations):
-        # Compute quantization error power per band
-        Pe = np.zeros(num_bands)
-
-        for b in range(num_bands):
-            w_low = int(bands[b, 1])
-            w_high = min(int(bands[b, 2]), N)
-            if w_low < N and w_high > w_low:
-                Pe[b] = np.sum((X[w_low:w_high + 1] - X_hat[w_low:w_high + 1]) ** 2)
         
-        # Check which bands can be quantized more coarsely
-        bands_to_increase = (Pe < T)  # Error below threshold
-        
-        # If no bands can be increased, we're done
-        if not np.any(bands_to_increase):
-            break
-        
-        # Increase alpha for bands below threshold
-        alpha[bands_to_increase] += 1
-        
-        # Re-quantize with new alpha values
-        for b in np.where(bands_to_increase)[0]:
-            w_low = int(bands[b, 1])
-            w_high = min(int(bands[b, 2]), N)
+        # Out-of-range band: skip
+        if w_low >= N or w_high < w_low:
+            continue
 
-            # Always check the max-difference constraint first.
-            # If violated, revert this band regardless of whether it is in-range.
-            if num_bands > 1:
-                max_diff = np.max(np.abs(np.diff(alpha)))
-                if max_diff > MAX_SCALEFACTOR:
-                    alpha[b] -= 1
-                    continue
+        S_prev = None
 
-            # Out-of-range band: no coefficients to quantize, revert.
-            if w_low >= N or w_high <= w_low:
-                alpha[b] -= 1
-                continue
-
+        while True:
+            # Quantize current band
             S_new = _quantize(X[w_low:w_high + 1], alpha[b])
-            Pe_new = np.sum((X[w_low:w_high + 1] - _dequantize(S_new, alpha[b]))**2)
+            X_hat_new = _dequantize(S_new, alpha[b])
+            
+            # Calculate new quantization error
+            Pe_new = np.sum((X[w_low:w_high + 1] - X_hat_new) ** 2)
+            all_zeros = np.all(S_new == 0)
 
-            if Pe_new < T[b]:  # Only accept if still below threshold
-                S[w_low:w_high + 1] = S_new
-                X_hat[w_low:w_high + 1] = _dequantize(S_new, alpha[b])
+            if Pe_new < T[b]:
+                if all_zeros:
+                    # Skip further quantization
+                    break
+                else:  # Accept and increase scale factor for finer quantization
+                    S_prev = S_new.copy()
+                    alpha[b] += 1
+                
+                # Check the maximum allowed scalefactor difference
+                if num_bands > 1:
+                    max_diff = np.max(np.abs(np.diff(alpha)))
+                    if max_diff > MAX_SCALEFACTOR:   # MAX_SCALEFACTOR is 60
+                        alpha[b] -= 1
+                        S_new = S_prev
+                        break
             else:  # Revert immediately
-                alpha[b] -= 1
+                if S_prev is not None:
+                    alpha[b] -= 1
+                    S_new = S_prev
+                break
+        
+        # Apply dequantization for the final accepted scale factor
+        S[w_low:w_high + 1] = S_new
+        X_hat[w_low:w_high + 1] = _dequantize(S_new, alpha[b])
     
     # Global gain is the first scale factor
     G = float(alpha[0])
