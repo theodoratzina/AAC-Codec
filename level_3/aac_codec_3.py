@@ -117,7 +117,7 @@ def aac_coder_3(filename_in, filename_aac_coded):
             # Huffman encoding for MDCT coefficients
             stream, codebook = encode_huff(S, huff_LUT_list)
 
-            # Huffman encoding for scale factors (always use codebook 11)
+            # Huffman encoding for scale factors
             if frame_type == "ESH":
                 # ESH: Encode each subframe's scale factors separately
                 sfc_encoded = []
@@ -355,7 +355,7 @@ def demo_aac_3(filename_in, filename_out, filename_aac_coded):
         compression: Compression ratio
     """
     # Load original audio
-    original, fs = sf.read(filename_in)
+    original_audio, fs = sf.read(filename_in)
 
      # Get actual bit depth from file info
     info = sf.info(filename_in)
@@ -371,8 +371,8 @@ def demo_aac_3(filename_in, filename_out, filename_aac_coded):
         bit_depth = 16  # Default assumption
     
     # Ensure 2D shape for comparison (mono or stereo)
-    if original.ndim == 1:
-        original = original.reshape(-1, 1)
+    if original_audio.ndim == 1:
+        original_audio = original_audio.reshape(-1, 1)
 
     # Encode
     start_time = time.time()
@@ -380,50 +380,68 @@ def demo_aac_3(filename_in, filename_out, filename_aac_coded):
     encode_time = time.time() - start_time
     print(f"Encoded {len(aac_seq_3)} frames in {encode_time:.2f} seconds")
 
-    # Calculate bitrate and compression
+    # Count total bits used in the encoded sequence
     total_bits = 0
     for frame in aac_seq_3:
-        # Count bits from Huffman streams
-        total_bits += len(frame['chl']['stream'])  # MDCT left
-        total_bits += len(frame['chr']['stream'])  # MDCT right
 
-        # Count bits from scale factors
-        if isinstance(frame['chl']['sfc'], list):
-            # ESH: Multiple subframes
-            for sfc_sub in frame['chl']['sfc']:
-                total_bits += len(sfc_sub)
-            for sfc_sub in frame['chr']['sfc']:
-                total_bits += len(sfc_sub)
-        else:
-            # Long frames
-            total_bits += len(frame['chl']['sfc'])
-            total_bits += len(frame['chr']['sfc'])
+        # frame_type (2 bits) + win_type (1 bit)
+        total_bits += 3
+        
+        for ch in ['chl', 'chr']:
+            ch_data = frame[ch]
+            
+            # Bits for MDCT coefficients stream
+            total_bits += len(ch_data['stream'])
+            
+            # Bits for scale factors
+            if frame['frame_type'] == "ESH":
+                # ESH: 8 subframes
+                for sfc_sub in ch_data['sfc']:
+                    total_bits += len(sfc_sub)
+                
+                # Overhead for ESH:
+                total_bits += 8 * 8      # G: 8 subframes * 8 bits
+                total_bits += 8 * 4 * 4  # tns_coeffs: 8 subframes * 4 coeffs * 4 bits
+                total_bits += 8 * 4      # codebook MDCT: 8 subframes * 4 bits
+                total_bits += 8 * 4      # sfc_codebook: 8 subframes * 4 bits
+            else:
+                # Long Frames (OLS, LSS, LPS)
+                total_bits += len(ch_data['sfc'])
+                
+                # Overhead for long frames:
+                total_bits += 8      # G: 1 * 8 bits
+                total_bits += 4 * 4  # tns_coeffs: 4 coeffs * 4 bits
+                total_bits += 4      # codebook MDCT: 4 bits
+                total_bits += 4      # sfc_codebook: 4 bits
 
-    duration = len(original) / fs
-    bitrate = total_bits / duration
+    # Calculate duration of original audio
+    duration = len(original_audio) / fs
 
     # Original bitrate: 48000 Hz * 2 channels * bit_depth bits/sample
     original_bitrate = fs * 2 * bit_depth
+
+    # Calculate bitrate and compression ratio
+    bitrate = total_bits / duration
     compression = original_bitrate / bitrate
 
     # Decode
     start_time = time.time()
-    decoded = i_aac_coder_3(aac_seq_3, filename_out)
+    decoded_audio = i_aac_coder_3(aac_seq_3, filename_out)
     decode_time = time.time() - start_time
     print(f"Decoded {len(aac_seq_3)} frames in {decode_time:.2f} seconds")
 
     # If original was mono, compare only first channel
-    if original.shape[1] == 1 and decoded.shape[1] == 2:
-        decoded = decoded[:, :1]
+    if original_audio.shape[1] == 1 and decoded_audio.shape[1] == 2:
+        decoded_audio = decoded_audio[:, :1]
 
     # Match lengths
-    min_length = min(len(original), len(decoded))
-    original = original[:min_length, :]
-    decoded = decoded[:min_length, :]
+    min_length = min(len(original_audio), len(decoded_audio))
+    original_audio = original_audio[:min_length, :]
+    decoded_audio = decoded_audio[:min_length, :]
 
     # Calculate SNR
-    signal_power = np.sum(original ** 2)
-    noise_power = np.sum((original - decoded) ** 2)
+    signal_power = np.sum(original_audio ** 2)
+    noise_power = np.sum((original_audio - decoded_audio) ** 2)
 
     if noise_power == 0:
         SNR = float('inf')

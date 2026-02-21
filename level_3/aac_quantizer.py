@@ -108,7 +108,7 @@ def _quantize_subframe(X, SMR, bands):
         S_prev = None
 
         while True:
-            # Quantize current band
+            # Quantize and dequantize current band
             S_new = _quantize(X[w_low:w_high + 1], alpha[b])
             X_hat_new = _dequantize(S_new, alpha[b])
             
