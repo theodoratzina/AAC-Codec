@@ -145,7 +145,7 @@ The complete lossy compression pipeline:
   - Non-uniform 3/4-power law quantization $S = \text{sign}(X) \cdot \lfloor |X|^{3/4} \cdot 2^{-\alpha/4} + 0.4054 \rfloor$, guided by the SMR thresholds from the psychoacoustic model
   - Scale factors iteratively optimized per band and DPCM-encoded (max delta = 60)
 
-- **Huffman Coding** *(pre-built utility, not implemented from scratch)*:
+- **Huffman Coding**: *(pre-built utility, not implemented from scratch)*
   - 11 standard AAC codebooks provided via `huffCodebooks.mat`
   - Automatic codebook selection based on maximum absolute coefficient value; escape coding for large values
 
@@ -206,7 +206,7 @@ This will:
 2. Save the encoded data to `aac_coded_level3.mat`
 3. Decode and save the output to `output_level3.wav`
 4. Print SNR, bitrate, compression ratio, and frame statistics
-5. Plot the psychoacoustic masking threshold \(T(b)\) for a sample frame
+5. Plot the psychoacoustic masking threshold for a sample frame
 
 ### Run individual level demos
 
