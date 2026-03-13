@@ -160,6 +160,7 @@ def _quantize(X, alpha):
 
     return S
 
+
 def _dequantize(S, alpha):
     """Reconstruct from quantized values"""
 
